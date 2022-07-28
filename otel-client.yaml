@@ -1,0 +1,118 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-data-plane-collector-conf
+  labels:
+    app: opentelemetry
+    component: otel-data-plane-collector-conf
+data:
+  config.yaml: |
+    extensions:
+      oauth2client:
+        client_id: <<client_id>>
+        client_secret: <<client_secret>>
+        token_url: <<token_url>>
+        endpoint_params:
+          audience: <<audience>>
+    
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    
+    exporters:
+      otlp:
+        endpoint: "otel-control-plane-collector.default.svc.cluster.local:4317"
+        auth:
+          authenticator: oauth2client
+        tls:
+          insecure: false
+          ca_file: /var/secrets/ca.pem
+
+    service:
+      extensions: [oauth2client]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [otlp]
+        metrics:
+          receivers: [otlp]
+          exporters: [otlp]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-data-plane-collector
+  labels:
+    app: opentelemetry
+    component: otel-data-plane-collector
+spec:
+  ports:
+  - name: otlp-grpc # Default endpoint for OpenTelemetry gRPC receiver.
+    port: 4317
+    protocol: TCP
+    targetPort: 4317
+  - name: otlp-http # Default endpoint for OpenTelemetry HTTP receiver.
+    port: 4318
+    protocol: TCP
+    targetPort: 4318
+  - name: metrics # Default endpoint for querying metrics.
+    port: 8888
+  selector:
+    component: otel-data-plane-collector
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-data-plane-collector
+  labels:
+    app: opentelemetry
+    component: otel-data-plane-collector
+spec:
+  selector:
+    matchLabels:
+      app: opentelemetry
+      component: otel-data-plane-collector
+  minReadySeconds: 5
+  progressDeadlineSeconds: 120
+  replicas: 1 #TODO - adjust this to your own requirements
+  template:
+    metadata:
+      labels:
+        app: opentelemetry
+        component: otel-data-plane-collector
+    spec:
+      containers:
+      - image: otel/opentelemetry-collector-contrib:0.56.0
+        name: otel-collector
+        # resources:
+        #   limits:
+        #     cpu: 1
+        #     memory: 2Gi
+        #   requests:
+        #     cpu: 200m
+        #     memory: 400Mi
+        ports:
+        - containerPort: 55679 # Default endpoint for ZPages.
+        - containerPort: 4317 # Default endpoint for OpenTelemetry receiver.
+        - containerPort: 14250 # Default endpoint for Jaeger gRPC receiver.
+        - containerPort: 14268 # Default endpoint for Jaeger HTTP receiver.
+        - containerPort: 9411 # Default endpoint for Zipkin receiver.
+        - containerPort: 8888  # Default endpoint for querying metrics.
+        volumeMounts:
+          - mountPath: /etc/otelcol-contrib/config.yaml
+            name: data
+            subPath: config.yaml
+            readOnly: true
+          - name: secrets
+            mountPath: "/var/secrets/"
+            readOnly: true
+      volumes:
+        - name: data
+          configMap:
+            name: otel-data-plane-collector-conf
+        - name: secrets
+          secret:
+            secretName: otel-collector-secrets

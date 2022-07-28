@@ -1,0 +1,14 @@
+{
+    "hosts": [
+        "otel-control-plane-collector.default.svc.cluster.local"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "O":  "OpenTelemetry"
+        }
+    ]
+}
