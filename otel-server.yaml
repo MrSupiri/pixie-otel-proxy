@@ -10,12 +10,8 @@ data:
   config.yaml: |
     extensions:
       oidc:
-        issuer_url: <<issuer_url>>
-        audience: <audience>
-      zpages: {}
-      memory_ballast:
-        # Memory Ballast size should be max 1/3 to 1/2 of memory.
-        size_mib: 683
+        issuer_url: ${ISSUER_URL}
+        audience: ${AUDIENCE}
     receivers:
       otlp:
         protocols:
@@ -23,33 +19,19 @@ data:
             endpoint: 0.0.0.0:4317
             auth:
               authenticator: oidc
-            tls:
-              cert_file: /var/secrets/cert.pem
-              key_file: /var/secrets/cert-key.pem
-    processors:
-      batch:
-      memory_limiter:
-        # 80% of maximum memory up to 2G
-        limit_mib: 1500
-        # 25% of limit up to 2G
-        spike_limit_mib: 512
-        check_interval: 5s
     exporters:
       logging:
         loglevel: info 
         sampling_initial: 5
         sampling_thereafter: 200
-        
     service:
-      extensions: [oidc, zpages, memory_ballast]
+      extensions: [oidc]
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, batch]
           exporters: [logging]
         metrics:
           receivers: [otlp]
-          processors: [memory_limiter, batch]
           exporters: [logging]
 ---
 apiVersion: v1
@@ -101,6 +83,17 @@ spec:
         #     - "/otelcol"
         #     - "--config=/conf/otel-collector-config.yaml"
         name: otel-collector
+        env:
+        - name: ISSUER_URL
+          valueFrom:
+            secretKeyRef:
+              name: otel-oidc-secrets
+              key: ISSUER_URL
+        - name: AUDIENCE
+          valueFrom:
+            secretKeyRef:
+              name: otel-oidc-secrets
+              key: AUDIENCE
         # resources:
         #   limits:
         #     cpu: 1

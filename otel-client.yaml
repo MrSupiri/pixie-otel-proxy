@@ -10,21 +10,21 @@ data:
   config.yaml: |
     extensions:
       oauth2client:
-        client_id: <<client_id>>
-        client_secret: <<client_secret>>
-        token_url: <<token_url>>
+        client_id: ${CLIENT_ID}
+        client_secret: ${CLIENT_SECRET}
+        token_url: ${TOKEN_URL}
         endpoint_params:
-          audience: <<audience>>
-    
+          audience: ${AUDIENCE}
+
     receivers:
       otlp:
         protocols:
           grpc:
             endpoint: 0.0.0.0:4317
-    
+
     exporters:
       otlp:
-        endpoint: "otel-control-plane-collector.default.svc.cluster.local:4317"
+        endpoint: "otel-nginx-proxy.default.svc.cluster.local:8081"
         auth:
           authenticator: oauth2client
         tls:
@@ -87,6 +87,27 @@ spec:
       containers:
       - image: otel/opentelemetry-collector-contrib:0.56.0
         name: otel-collector
+        env:
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: otel-oidc-secrets
+              key: CLIENT_ID
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: otel-oidc-secrets
+              key: CLIENT_SECRET
+        - name: TOKEN_URL
+          valueFrom:
+            secretKeyRef:
+              name: otel-oidc-secrets
+              key: TOKEN_URL
+        - name: AUDIENCE
+          valueFrom:
+            secretKeyRef:
+              name: otel-oidc-secrets
+              key: AUDIENCE
         # resources:
         #   limits:
         #     cpu: 1
